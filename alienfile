@@ -1,5 +1,8 @@
 use alienfile;
 use Path::Tiny 'path';
+use Alien::Build::Util qw( _destdir_prefix );
+
+my $minimal_header= path(__FILE__)->parent->child('include/fluent-bit-minimal.h');
 
 probe sub {
    if (-f '/lib/fluent-bit/libfluent-bit.so'
@@ -17,12 +20,14 @@ sys {
       my $bin_dir= $build->runtime_prop->{bin_dir}= '/opt/fluent-bit/bin';
       `"$bin_dir/fluent-bit" --version` =~ /v([0-9.]+)/ or die; # tested above
       $build->runtime_prop->{version}= $1;
-      # Need to add our own fluent-bit.h to an installed include dir because the headers
-      # installed by fluent-bit-headers package for Debian are broken.
+      # Headers installed by fluent-bit cmake are broken, missing many referenced
+      # sub-projects, but also all of it it is unnecessary because the public API
+      # is only 10 functions.
       # See https://github.com/fluent/fluent-bit/issues/7165
-      my $custom_inc_dir= path("${prefix}/include");
+      my $custom_inc_dir= path("$prefix/include");
       $custom_inc_dir->mkpath;
-      path(__FILE__)->parent->child('include/fluent-bit.h')->copy($custom_inc_dir);
+      $minimal_header->copy("$custom_inc_dir/fluent-bit-minimal.h");
+      $minimal_header->copy("$custom_inc_dir/fluent-bit.h");
       $build->runtime_prop->{cflags}= "-I$custom_inc_dir";
       $build->runtime_prop->{libs}= "-L/lib/fluent-bit -Wl,-rpath,/lib/fluent-bit -lfluent-bit";
    };
@@ -36,7 +41,6 @@ share {
    plugin Download => ();
    plugin Extract => 'tar.gz';
    plugin 'Build::CMake';
-   plugin 'Gather::IsolateDynamic';
    build [
       [ '%{cmake}',
          @{ meta->prop->{plugin_build_cmake}->{args} },
@@ -46,5 +50,27 @@ share {
       '%{make} -j 10',
       '%{make} install',
    ];
+   plugin 'Gather::IsolateDynamic';
+   after gather => sub {
+      my $build   = shift;
+      my $prefix  = path($build->install_prop->{prefix})->absolute;
+      $build->runtime_prop->{cflags}= "-I$prefix/include";
+      $build->runtime_prop->{libs}  = "-L$prefix/lib/fluent-bit -Wl,-rpath,$prefix/lib/fluent-bit -lfluent-bit";
+      # Use a minimal fluent-bit.h because the headers installed by cmake
+      # are broken, missing many deps.
+      # See https://github.com/fluent/fluent-bit/issues/7165
+      my $install_root;
+      if ($build->meta_prop->{destdir}) {
+         my $destdir = $ENV{DESTDIR};
+         $install_root = path(_destdir_prefix($ENV{DESTDIR}, $build->install_prop->{prefix}));
+      } else {
+         $install_root = path($build->install_prop->{stage});
+      }
+      my $inc_dir= path($install_root."/include");
+      -f $inc_dir->child('fluent-bit.h') or die "No fluent-bit.h yet";
+      $inc_dir->child('fluent-bit.h')->move('fluent-bit-full.h');
+      $minimal_header->copy("$inc_dir/fluent-bit-minimal.h");
+      $minimal_header->copy("$inc_dir/fluent-bit.h");
+   };
 };
 

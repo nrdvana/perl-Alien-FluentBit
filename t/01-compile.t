@@ -7,11 +7,18 @@ note 'cflags '.Alien::FluentBit->cflags;
 note 'libs '.Alien::FluentBit->libs;
 note 'bin_dir '.Alien::FluentBit->bin_dir;
 
-eval {
+# Workaround bug where Test::Alien doesn't rewrite the rpath
+# It needs to point to the temp dir, not the final perl lib install dir
+my $libs= Alien::FluentBit->libs;
+my ($libpath)= ($libs =~ m{-L(/\S+)});
+$libs =~ s{-Wl,-rpath,(/\S+)}{-Wl,-rpath,$libpath};
+local *Alien::FluentBit::libs= sub { $libs };
+local *Alien::FluentBit::libs_static= sub { $libs };
+local *Alien::FluentBit::libs_dynamic= sub { $libs };
+
 xs_ok { xs => do { local $/; <DATA> }, verbose => 1 }, with_subtest {
    is TestFluent::loadit(), 1, 'Created fluentbit context';
 };
-1; } or POSIX::_exit(2);
 
 done_testing;
 
@@ -20,12 +27,7 @@ __DATA__
 #include "perl.h"
 #include "XSUB.h"
 
-//#include <fluent-bit.h>
-
-struct flb_lib_ctx;
-typedef struct flb_lib_ctx flb_ctx_t;
-extern flb_ctx_t *flb_create();
-extern void flb_destroy(flb_ctx_t *ctx);
+#include <fluent-bit-minimal.h>
 
 MODULE = TestFluent PACKAGE = TestFluent
  
