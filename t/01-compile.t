@@ -7,6 +7,8 @@ note 'cflags '.Alien::FluentBit->cflags;
 note 'libs '.Alien::FluentBit->libs;
 note 'bin_dir '.Alien::FluentBit->bin_dir;
 
+ok( -x Alien::FluentBit->fluentbit, 'fluent-bit executable' );
+
 # Workaround bug where Test::Alien doesn't rewrite the rpath
 # It needs to point to the temp dir, not the final perl lib install dir
 my $libs= Alien::FluentBit->libs;
