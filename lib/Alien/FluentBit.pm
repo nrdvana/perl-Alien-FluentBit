@@ -35,14 +35,15 @@ To use:
   say "Compile flags are ".Alien::FluentBit->cflags;
   say "Link flags are ".Alien::FluentBit->libs;
 
-See the Makefile.PL of Fluent::LibFluentBit for a full example.
+See the L<Makefile.PL|https://metacpan.org/release/NERDVANA/Fluent-LibFluentBit-0.02/source/Makefile.PL>
+of L<Fluent::LibFluentBit> for a full example.
 
 =head1 DESCRIPTION
 
 This distribution either finds fluent-bit installed on your system (currently only at the
 slightly odd locations used by the binary dist for Debian systems) or builds it from source.
 
-Currently only building from source works properly, as the binary dist library conflucts with
+Currently only building from source works properly, as the binary dist library conflicts with
 perl related to TLS allocations, and needs pre-loaded.  Pre-loading a giant library like this
 into every program you invoke is not ideal, so the from-source build is recommended.
 
